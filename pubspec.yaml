@@ -40,6 +40,8 @@ dependencies:
   document_file_save_plus: ^2.0.0
   desktop_drop: ^0.7.0
   file_selector: ^1.1.0
+  image: ^4.8.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

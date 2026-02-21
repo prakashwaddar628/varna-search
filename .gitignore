@@ -78,3 +78,9 @@ assets/models/*.onnx
 # Supabase or secure keys
 *.env
 .env
+
+# Python
+backend/venv/
+backend/__pycache__/
+venv/
+__pycache__/
