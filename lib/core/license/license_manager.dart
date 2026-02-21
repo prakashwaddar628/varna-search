@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 
@@ -26,7 +26,6 @@ class LicenseGuard {
   static const String _licenseDataToken = 'varna_license_data';
   static const int _gracePeriodDays = 3;
 
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   final SupabaseClient _supabase = Supabase.instance.client;
   final Logger _logger = Logger();
 
@@ -38,9 +37,10 @@ class LicenseGuard {
 
   LicenseState get state => _currentState;
 
-  /// Initializes the LicenseGuard, checks local encrypted storage and sets state.
+  /// Initializes the LicenseGuard, checks local storage and sets state.
   Future<void> initialize() async {
-    final licenseDataStr = await _secureStorage.read(key: _licenseDataToken);
+    final prefs = await SharedPreferences.getInstance();
+    final licenseDataStr = prefs.getString(_licenseDataToken);
     
     if (licenseDataStr == null) {
       _logger.i('No license found. Starting in Trial mode.');
@@ -64,7 +64,10 @@ class LicenseGuard {
 
       // Perform a background heartbeat check if possible
       if (isValidLocal && type != LicenseType.lifetime) {
-        _heartbeatCheck(licenseDataStr);
+        final key = prefs.getString(_licenseKeyToken);
+        if (key != null) {
+          _heartbeatCheck(key);
+        }
       }
     } catch (e) {
       _logger.e('Failed to parse local license data. Reverting to Trial.', error: e);
@@ -83,7 +86,7 @@ class LicenseGuard {
     if (lastCheck != null) {
       final daysOffline = DateTime.now().difference(lastCheck).inDays;
       if (daysOffline > _gracePeriodDays) {
-        _logger.w('License grace period expired ($daysOffline days offline). Heartbeat required.');
+        _logger.w('License grace period expired (\$daysOffline days offline). Heartbeat required.');
         return false;
       }
     }
@@ -124,7 +127,7 @@ class LicenseGuard {
           expiryDate: response['expiry_date'],
           key: key,
         );
-        _logger.i('License activated successfully: ${newType.name}');
+        _logger.i('License activated successfully: \${newType.name}');
         return true;
       }
       return false;
@@ -139,7 +142,9 @@ class LicenseGuard {
     String? expiryDate, 
     String? key,
   }) async {
-    final currentDict = jsonDecode(await _secureStorage.read(key: _licenseDataToken) ?? '{}');
+    final prefs = await SharedPreferences.getInstance();
+    final currentDictStr = prefs.getString(_licenseDataToken) ?? '{}';
+    final currentDict = jsonDecode(currentDictStr);
     
     final newData = {
       'type': type.name,
@@ -148,9 +153,9 @@ class LicenseGuard {
       'trialIndexed': currentDict['trialIndexed'] ?? 0,
     };
 
-    await _secureStorage.write(key: _licenseDataToken, value: jsonEncode(newData));
+    await prefs.setString(_licenseDataToken, jsonEncode(newData));
     if (key != null) {
-      await _secureStorage.write(key: _licenseKeyToken, value: key);
+      await prefs.setString(_licenseKeyToken, key);
     }
 
     _currentState = LicenseState(
@@ -162,8 +167,9 @@ class LicenseGuard {
   }
 
   Future<void> _invalidateLicenseLocally() async {
-    await _secureStorage.delete(key: _licenseDataToken);
-    await _secureStorage.delete(key: _licenseKeyToken);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_licenseDataToken);
+    await prefs.remove(_licenseKeyToken);
     _currentState = const LicenseState(type: LicenseType.trial, isValid: false, trialImagesIndexed: 0);
   }
 
@@ -172,13 +178,14 @@ class LicenseGuard {
     if (_currentState.type != LicenseType.trial) return;
 
     final currentCount = _currentState.trialImagesIndexed + 1;
-    final currentDictStr = await _secureStorage.read(key: _licenseDataToken) ?? '{}';
+    final prefs = await SharedPreferences.getInstance();
+    final currentDictStr = prefs.getString(_licenseDataToken) ?? '{}';
     Map<String, dynamic> data = currentDictStr.isNotEmpty ? jsonDecode(currentDictStr) : {};
     
     data['type'] = LicenseType.trial.name;
     data['trialIndexed'] = currentCount;
     
-    await _secureStorage.write(key: _licenseDataToken, value: jsonEncode(data));
+    await prefs.setString(_licenseDataToken, jsonEncode(data));
     
     _currentState = LicenseState(
       type: LicenseType.trial,

@@ -29,7 +29,6 @@ dependencies:
   supabase_flutter: ^2.5.0
   
   # Security / Storage
-  flutter_secure_storage: ^9.0.0
   path_provider: ^2.1.2
   url_launcher: ^6.2.5
   
@@ -37,6 +36,10 @@ dependencies:
   uuid: ^4.4.0
   dartz: ^0.10.1 # For functional programming/Either
   logger: ^2.3.0
+  shared_preferences: ^2.5.4
+  document_file_save_plus: ^2.0.0
+  desktop_drop: ^0.7.0
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:
