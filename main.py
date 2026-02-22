@@ -165,22 +165,32 @@ class DesignApp(QMainWindow):
             self.status.setText("Error: Could not process that image.")
             return
         
-        self.status.setText(f"Showing results for: {os.path.basename(path)}")
-        
-        # Clear Grid
+        # Clear existing grid results
         for i in reversed(range(self.grid.count())): 
-            self.grid.itemAt(i).widget().setParent(None)
+            widget = self.grid.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
 
         results = self.db.get_all()
+        print(f"Total designs in database: {len(results)}") # DEBUG LINE
+        
         matches = []
         for p, h in results:
             dist = self.engine.compare_hashes(target_h, h)
-            if dist < 18: # Threshold for similarity
+            # RELAXED THRESHOLD: Increased from 16 to 24
+            # 0 = identical, 64 = completely different.
+            if dist < 24: 
                 matches.append((dist, p))
         
-        matches.sort()
-        for i, (dist, p) in enumerate(matches):
-            self.grid.addWidget(DesignCard(p, dist), i // 5, i % 5)
+        print(f"Found {len(matches)} matches") # DEBUG LINE
+        
+        if not matches:
+            self.status.setText("No similar designs found. Try indexing more folders.")
+        else:
+            self.status.setText(f"Found {len(matches)} matches for: {os.path.basename(path)}")
+            matches.sort()
+            for i, (dist, p) in enumerate(matches):
+                self.grid.addWidget(DesignCard(p, dist), i // 5, i % 5)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
