@@ -2,53 +2,45 @@ import imagehash
 from PIL import Image
 import zipfile
 import io
-import numpy as np
+import numpy as np # Make sure to: pip install numpy
 
 class DesignEngine:
-    @staticmethod
-    def get_image_data(file_path):
-        """Helper to get a PIL Image from .cdr or standard image"""
+    def get_features(self, file_path):
+        """Extracts both Pattern (Hash) and Color info"""
         try:
             if file_path.lower().endswith('.cdr'):
                 with zipfile.ZipFile(file_path, 'r') as archive:
                     with archive.open('previews/preview.png') as thumb_file:
-                        return Image.open(io.BytesIO(thumb_file.read())).convert('RGB')
-            return Image.open(file_path).convert('RGB')
+                        img = Image.open(io.BytesIO(thumb_file.read())).convert('RGB')
+            else:
+                img = Image.open(file_path).convert('RGB')
+            
+            # 1. Pattern Hash
+            p_hash = str(imagehash.phash(img))
+            
+            # 2. Color Histogram (Simplified for speed)
+            img_small = img.resize((100, 100))
+            hist = np.array(img_small.histogram())
+            hist = hist / hist.sum() # Normalize
+            
+            return {"hash": p_hash, "hist": hist.tolist()}
         except:
             return None
 
-    def get_features(self, file_path):
-        """Extracts both Hash (Pattern) and Histogram (Color)"""
-        img = self.get_image_data(file_path)
-        if img is None: return None
+    def compare_designs(self, feat1, feat2):
+        """Returns a similarity score (Lower is better)"""
+        # Compare Patterns
+        h1 = imagehash.hex_to_hash(feat1['hash'])
+        h2 = imagehash.hex_to_hash(feat2['hash'])
+        hash_diff = h1 - h2
         
-        # 1. Pattern Hash
-        p_hash = str(imagehash.phash(img))
+        # Compare Colors
+        hist1 = np.array(feat1['hist'])
+        hist2 = np.array(feat2['hist'])
+        color_diff = np.linalg.norm(hist1 - hist2) * 100
         
-        # 2. Color Histogram (Simplified to 64 values for speed)
-        img_small = img.resize((100, 100))
-        hist = img_small.histogram()
-        # Normalize histogram to make it independent of image size
-        hist = np.array(hist) / sum(hist)
-        
-        return {"hash": p_hash, "hist": hist.tolist()}
-
-    @staticmethod
-    def compare_designs(target_features, saved_features):
-        # 1. Compare Patterns (0 is perfect)
-        h1 = imagehash.hex_to_hash(target_features['hash'])
-        h2 = imagehash.hex_to_hash(saved_features['hash'])
-        hash_dist = h1 - h2
-        
-        # 2. Compare Colors (0 is perfect)
-        hist1 = np.array(target_features['hist'])
-        hist2 = np.array(saved_features['hist'])
-        color_dist = np.linalg.norm(hist1 - hist2) * 100 # Euclidean distance
-        
-        # Combined Score: We give more weight to color for T-shirt photos
-        # because the 'pattern' is often distorted by wrinkles.
-        final_score = (hash_dist * 0.4) + (color_dist * 0.6)
-        return final_score
+        # Combined Score (60% Color + 40% Pattern works best for Photos)
+        return (hash_diff * 0.4) + (color_diff * 0.6)
 
     @staticmethod
     def get_preview_data(file_path):
