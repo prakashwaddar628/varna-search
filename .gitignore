@@ -1,86 +1,24 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.buildlog/
-.history
-.svn/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains maintainer specific workspace settings
-.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-/build/
-
-# ObjectBox generated files
-objectbox-model.json
-/lib/objectbox.g.dart
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will automatically add this to its ignore list when it creates a project
-/.idea/workspace.xml
-/.idea/tasks.xml
-/.idea/dictionaries
-/.idea/vcs.xml
-/.idea/caches
-/.idea/modules.xml
-/.idea/assetWizardSettings.xml
-/.idea/runConfigurations.xml
-/.idea/gradle.xml
-/.idea/navEditor.xml
-/.idea/libraries
-
-# Exceptions to above rules.
-!/.idea/runConfigurations
-!/.idea/codeStyles
-!/.idea/fileTemplates
-!/.idea/icon.png
-!/.idea/dictionaries
-
-# macOS
-.DS_Store
-
-# Windows build artifacts
-*.exe
-*.dll
-*.lib
-*.exp
-*.pdb
-*.ilk
-
-# ONNX Models (You probably want to ignore large model files and host them elsewhere)
-assets/models/*.onnx
-*.onnx
-
-# Supabase or secure keys
-*.env
+# Python Environment
+venv/
+env/
 .env
 
-# Python
-backend/venv/
-backend/__pycache__/
-venv/
+# Python Cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Database (Each user builds their own index)
+design_vault.db
+
+# IDEs and System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build and Distribution (for when you create the .exe)
+dist/
+build/
+*.spec
