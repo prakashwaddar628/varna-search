@@ -39,17 +39,28 @@ class DesignEngine:
             return None
 
     def get_features_from_pixels(self, img):
-        """Processes images into AI vectors (Google Search Style)."""
+        """Processes images into AI vectors with proper error handling."""
         if img is None: return None
         
-        # If the AI model is missing, we fall back to a high-accuracy color pattern
         if self.embedder is None:
             return self._fallback_math_features(img)
 
-        # AI Processing
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        embedding_result = self.embedder.embed(mp_image)
-        return embedding_result.embeddings[0].float_embedding.tolist()
+        try:
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            embedding_result = self.embedder.embed(mp_image)
+            
+            # The "Google Search" Fix: Check for both possible attribute names
+            embedding_obj = embedding_result.embeddings[0]
+            
+            if hasattr(embedding_obj, 'float_embedding'):
+                return embedding_obj.float_embedding.tolist()
+            else:
+                # Some versions of MediaPipe use 'embedding' directly
+                return list(embedding_obj.embedding)
+                
+        except Exception as e:
+            print(f"Internal AI Error: {e}")
+            return self._fallback_math_features(img)
 
     def _fallback_math_features(self, img):
         """A robust 'Custom AI' built from math to ensure search always works."""
