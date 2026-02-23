@@ -30,33 +30,63 @@ class DesignCard(QFrame):
     def __init__(self, file_path, score):
         super().__init__()
         self.file_path = file_path
-        self.setFixedSize(180, 250)
+        self.setFixedSize(300, 400)  # Slightly larger for better visibility
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setStyleSheet("background-color: #2b2b2b; border-radius: 12px; border: 2px solid #444;")
         
-        layout = QVBoxLayout()
-        img_label = QLabel()
-        img_label.setFixedSize(160, 160)
-        img_label.setScaledContents(True)
+        # Modern UI Styling with Laxpra Branding
+        self.setStyleSheet("""
+            QFrame {
+                background-color: #eef2f7;
+                border: 2px solid #fefefe;
+                border-radius: 15px;
+            }
+            QFrame:hover {
+                border: 2px solid #3498db;
+                background-color: #fcfdfe;
+                border-radius: 15px;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        # 2. IMAGE PREVIEW (Center)
+        self.img_label = QLabel()
+        self.img_label.setFixedSize(280, 280)
+        self.img_label.setScaledContents(True)
+        self.img_label.setStyleSheet("border-radius: 12px; background: #7408ef;")
         
         data = DesignEngine.get_preview_data(file_path)
         if data:
             px = QPixmap()
             px.loadFromData(data)
-            img_label.setPixmap(px)
-        
-        name = QLabel(os.path.basename(file_path))
-        name.setStyleSheet("font-size: 11px; color: #ddd; font-weight: bold;")
-        name.setWordWrap(True)
-        
-        display_score = int(score * 100)
-        score_lbl = QLabel(f"Match Accuracy: {display_score}%")
-        color = "#00FF7F" if display_score > 75 else "#FFA500"
-        score_lbl.setStyleSheet(f"color: {color}; font-weight: bold;")
+            self.img_label.setPixmap(px)
 
-        layout.addWidget(img_label)
-        layout.addWidget(name)
+        # 3. ACCURACY BADGE
+        display_score = int(score * 100)
+        score_lbl = QLabel(f"● {display_score}% Match")
+        badge_color = "#27ae60" if display_score > 75 else "#f39c12"
+        score_lbl.setStyleSheet(f"""
+            color: {badge_color}; 
+            font-weight: bold; 
+            font-size: 12px;
+            background: {badge_color}15; /* Transparent background */
+            padding: 4px;
+            border-radius: 5px;
+        """)
+        score_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # 4. FILE INFO (Bottom)
+        name = QLabel(os.path.basename(file_path))
+        name.setStyleSheet("font-size: 11px; color: #555; font-weight: 500;")
+        name.setWordWrap(True)
+        name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Assemble the Card
+        layout.addWidget(self.img_label)
         layout.addWidget(score_lbl)
+        layout.addWidget(name)
         self.setLayout(layout)
 
     def mousePressEvent(self, event):
@@ -91,8 +121,8 @@ class ScanThread(QThread):
 class DesignApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Varna Search - Perfect AI Matcher")
-        self.resize(1100, 850)
+        self.setWindowTitle("LAXPRA - Perfect AI Matcher")
+        self.resize(1000, 750)
         self.setAcceptDrops(True)
         self.db, self.engine = DesignDB(), DesignEngine()
         self.init_ui()
@@ -110,7 +140,7 @@ class DesignApp(QMainWindow):
 
         self.status = QLabel("Drag & Drop or use Step 2 to find a design.")
         self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status.setStyleSheet("padding: 15px; color: #aaa; background: #1a1a1a; border-radius: 5px;")
+        self.status.setStyleSheet("padding: 15px; color: #fff; background: #667eea; border-radius: 5px; font-weight: 500;")
         
         self.pbar = QProgressBar()
         self.pbar.hide()
@@ -130,9 +160,36 @@ class DesignApp(QMainWindow):
         w.setLayout(layout)
         self.setCentralWidget(w)
         self.setStyleSheet("""
-            QMainWindow { background-color: #121212; }
-            QPushButton { height: 45px; background: #333; color: white; border: 1px solid #555; border-radius: 8px; font-weight: bold; }
-            QPushButton:hover { background: #444; border: 1px solid #777; }
+            QMainWindow { background-color: #f8f9fa; }
+            QPushButton { 
+                height: 45px; 
+                background: #667eea; 
+                color: white; 
+                border: none; 
+                border-radius: 8px; 
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover { 
+                background: #5568d3; 
+            }
+            QPushButton:pressed {
+                background: #4a5ac4;
+            }
+            QProgressBar {
+                border: none;
+                border-radius: 5px;
+                background-color: #e0e0e0;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #667eea;
+                border-radius: 5px;
+            }
+            QScrollArea {
+                border: none;
+                background-color: #f8f9fa;
+            }
         """)
 
     def dragEnterEvent(self, e):
@@ -164,16 +221,10 @@ class DesignApp(QMainWindow):
             self.worker.start()
 
     def search(self, path):
-        # Default search (no cropping) for Drag & Drop
         target_feat = self.engine.get_features(path)
-        self.display_results(target_feat, os.path.basename(path))
-
-    def display_results(self, target_feat, filename):
-        if not target_feat:
-            self.status.setText("Could not analyze image.")
-            return
-
-        # Clear grid
+        if not target_feat: return
+        
+        # Clear existing results
         for i in reversed(range(self.grid.count())): 
             self.grid.itemAt(i).widget().setParent(None)
 
@@ -181,15 +232,54 @@ class DesignApp(QMainWindow):
         matches = []
         for p, feat in all_data:
             score = self.engine.compare_designs(target_feat, feat)
-            if score > 0.4: 
+            if score > 0.35: # Broaden threshold to find similar items
                 matches.append((score, p))
         
+        # Sort and take Top 10
         matches.sort(key=lambda x: x[0], reverse=True)
+        top_matches = matches[:10] 
         
-        for i, (score, p) in enumerate(matches[:20]):
-            self.grid.addWidget(DesignCard(p, score), i // 4, i % 4)
+        for i, (score, p) in enumerate(top_matches):
+            # Display in 5 columns for a clean 2-row look
+            self.grid.addWidget(DesignCard(p, score), i // 5, i % 5)
         
-        self.status.setText(f"Found {len(matches)} matches for '{filename}'. Top results are most accurate.")
+        self.status.setText(f"LAXPRA AI found {len(top_matches)} similar matches.")
+
+    def display_results(self, target_feat, filename):
+        if not target_feat:
+            self.status.setText("Could not analyze image.")
+            return
+
+        # 1. Clear the current grid
+        for i in reversed(range(self.grid.count())): 
+            widget = self.grid.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        # 2. Get all designs and calculate similarity scores
+        all_data = self.db.get_all()
+        matches = []
+        for path, feat in all_data:
+            score = self.engine.compare_designs(target_feat, feat)
+            # Only show results with a decent match (above 30%)
+            if score > 0.3: 
+                matches.append((score, path))
+        
+        # 3. Sort by accuracy and take the Top 12 (to fill 3 rows of 4)
+        matches.sort(key=lambda x: x[0], reverse=True)
+        top_matches = matches[:12]
+
+        if not top_matches:
+            self.status.setText("No similar designs found.")
+            return
+
+        # 4. Add the new "Design Cards" to the UI Grid
+        for i, (score, path) in enumerate(top_matches):
+            card = DesignCard(path, score)
+            # Layout in 4 columns
+            self.grid.addWidget(card, i // 4, i % 4)
+            
+        self.status.setText(f"Found {len(top_matches)} similar designs for '{filename}'")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
