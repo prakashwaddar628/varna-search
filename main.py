@@ -122,6 +122,8 @@ class DesignApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("LAXPRA - Perfect AI Matcher")
+        app_icon = QIcon("laxpra.png") 
+        self.setWindowIcon(app_icon)
         self.resize(1000, 750)
         self.setAcceptDrops(True)
         self.db, self.engine = DesignDB(), DesignEngine()
@@ -282,6 +284,10 @@ class DesignApp(QMainWindow):
         self.status.setText(f"Found {len(top_matches)} similar designs for '{filename}'")
 
 if __name__ == "__main__":
+    if sys.platform == 'win32':
+        import ctypes
+        myappid = 'laxpra.ai.matcher.v1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     app = QApplication(sys.argv)
     win = DesignApp()
     win.show()
