@@ -22,3 +22,5 @@ Thumbs.db
 dist/
 build/
 *.spec
+
+vc_redist.x64.exe
