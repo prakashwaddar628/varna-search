@@ -1,6 +1,6 @@
 # LAXPRA - AI Design Matcher
 
-A powerful desktop application for finding similar designs using advanced computer vision. LAXPRA intelligently analyzes design images and matches them against a custom design vault, helping designers quickly discover similar patterns, textures, and styles.
+A powerful desktop application for finding similar designs using advanced computer vision. LAXPRA intelligently analyzes design images and matches them against a custom design vault, helping designers quickly discover similar patterns, textures, and styles. 
 
 ## Features
 
