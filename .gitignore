@@ -24,3 +24,5 @@ build/
 *.spec
 
 vc_redist.x64.exe
+
+images/
