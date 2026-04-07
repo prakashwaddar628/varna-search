@@ -1,5 +1,7 @@
 from engine import DesignEngine
-import sys, os, subprocess, cv2, numpy as np
+import sys, os, subprocess
+import cv2
+import numpy as np
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
@@ -236,18 +238,16 @@ class DesignApp(QMainWindow):
             result = self.engine.compare_designs(target_feat, feat)
             score = result["score"]
             bounds = result["bounds"]
-            if score > 0.70: # Semantic threshold
-                matches.append((score, p, bounds))
+            matches.append((score, p, bounds))
         
-        # Sort and take Top 10
+        # Sort and always take Top 5
         matches.sort(key=lambda x: x[0], reverse=True)
-        top_matches = matches[:10] 
+        top_matches = matches[:5]
         
         for i, (score, p, bounds) in enumerate(top_matches):
-            # Display in 5 columns for a clean 2-row look
-            self.grid.addWidget(DesignCard(p, score, bounds), i // 5, i % 5)
+            self.grid.addWidget(DesignCard(p, score, bounds), 0, i)
         
-        self.status.setText(f"LAXPRA AI found {len(top_matches)} similar matches.")
+        self.status.setText(f"LAXPRA AI found {len(top_matches)} color-matched designs.")
 
     def display_results(self, target_feat, filename):
         if not target_feat:
@@ -267,23 +267,20 @@ class DesignApp(QMainWindow):
             result = self.engine.compare_designs(target_feat, feat)
             score = result["score"]
             bounds = result["bounds"]
-            # Only show results with a decent match for CLIP
-            if score > 0.70: 
-                matches.append((score, path, bounds))
+            matches.append((score, path, bounds))
         
-        # 3. Sort by accuracy and take the Top 12 (to fill 3 rows of 4)
+        # 3. Sort and always take Top 5
         matches.sort(key=lambda x: x[0], reverse=True)
-        top_matches = matches[:12]
+        top_matches = matches[:5]
 
         if not top_matches:
             self.status.setText("No similar designs found.")
             return
 
-        # 4. Add the new "Design Cards" to the UI Grid
+        # 4. Add the Design Cards as a single row of 5
         for i, (score, path, bounds) in enumerate(top_matches):
             card = DesignCard(path, score, bounds)
-            # Layout in 4 columns
-            self.grid.addWidget(card, i // 4, i % 4)
+            self.grid.addWidget(card, 0, i)
             
         self.status.setText(f"Found {len(top_matches)} similar designs for '{filename}'")
 
@@ -292,6 +289,10 @@ if __name__ == "__main__":
         import ctypes
         myappid = 'laxpra.ai.matcher.v1'
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        
+    # Remove the 128MB allocation limit for QImageReader so large high-res PNG/CDR previews do not fail to render.
+    QImageReader.setAllocationLimit(0)
+    
     app = QApplication(sys.argv)
     win = DesignApp()
     win.show()

@@ -1,7 +1,4 @@
-PyQt6==6.4.2
-opencv-python==4.9.0.80
-numpy==1.26.4
-torch
-torchvision
-transformers
+PyQt6
+opencv-python
+numpy
 pillow

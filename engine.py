@@ -3,85 +3,121 @@ import numpy as np
 import zipfile
 import os
 from PIL import Image
-import torch
-from transformers import CLIPProcessor, CLIPVisionModelWithProjection
+
+# Number of zones per axis — 4x4 = 16 spatial sections
+ZONES = 4
+# Number of histogram bins per HSV channel
+H_BINS, S_BINS, V_BINS = 16, 8, 8
+
 
 class DesignEngine:
     def __init__(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model_id = "openai/clip-vit-base-patch32"
-        print(f"Loading Semantic DL Engine ({self.model_id}) on {self.device}...")
-        self.model = CLIPVisionModelWithProjection.from_pretrained(self.model_id).to(self.device)
-        self.processor = CLIPProcessor.from_pretrained(self.model_id)
-        print("Model loaded successfully.")
+        print("Multi-Zone Color Engine Initialized (4x4 spatial grid, HSV histograms)")
 
-    def get_features(self, file_path):
-        try:
-            def load_and_prep_img(f):
-                img = Image.open(f)
-                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
-                    alpha = img.convert('RGBA').split()[-1]
-                    bg = Image.new("RGB", img.size, (255, 255, 255))
-                    bg.paste(img, mask=alpha)
-                    return bg
-                return img.convert('RGB')
+    # -----------------------------------------------------------------
+    # Internal: compute histograms for all zones of a PIL or numpy image
+    # -----------------------------------------------------------------
+    def _compute_zone_histograms(self, img_bgr: np.ndarray) -> list:
+        """Divide image into a ZONES×ZONES grid and return one normalized
+        HSV histogram per zone (list of numpy arrays)."""
+        h, w = img_bgr.shape[:2]
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
-            if isinstance(file_path, str) and file_path.lower().endswith('.cdr'):
-                with zipfile.ZipFile(file_path, 'r') as archive:
-                    with archive.open('previews/preview.png') as thumb_file:
-                        from io import BytesIO
-                        img = load_and_prep_img(BytesIO(thumb_file.read()))
-            else:
-                img = load_and_prep_img(file_path)
-            
-            return self.get_features_from_pixels(img)
-        except Exception as e:
-            print(f"Extraction Error for {file_path}: {e}")
-            return None
+        zone_h = max(h // ZONES, 1)
+        zone_w = max(w // ZONES, 1)
 
-    def get_features_from_pixels(self, img):
-        if img is None: return None
-        
-        try:
-            # If it's a numpy array (from cv2 crop), convert to PIL Image
-            if isinstance(img, np.ndarray):
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(img)
+        histograms = []
+        for row in range(ZONES):
+            for col in range(ZONES):
+                y1 = row * zone_h
+                y2 = y1 + zone_h if row < ZONES - 1 else h
+                x1 = col * zone_w
+                x2 = x1 + zone_w if col < ZONES - 1 else w
 
-            inputs = self.processor(images=img, return_tensors="pt").to(self.device)
-            with torch.no_grad():
-                features = self.model(**inputs).image_embeds
-            
-            # Normalize the embedding for cosine similarity math
-            features = features / features.norm(dim=-1, keepdim=True)
-            
-            return {
-                "embedding": features.cpu().numpy().flatten().tolist()
-            }
-        except Exception as e:
-            print(f"Internal Engine Error: {e}")
-            return None
+                zone = hsv[y1:y2, x1:x2]
+                hist = cv2.calcHist(
+                    [zone], [0, 1, 2], None,
+                    [H_BINS, S_BINS, V_BINS],
+                    [0, 180, 0, 256, 0, 256]
+                )
+                cv2.normalize(hist, hist)
+                histograms.append(hist.flatten().tolist())
 
-    def compare_designs(self, feat1, feat2):
-        if not feat1 or not feat2 or 'embedding' not in feat1 or 'embedding' not in feat2:
-            return {"score": 0.0, "bounds": None}
+        return histograms  # length == ZONES * ZONES
 
-        e1 = np.array(feat1['embedding'])
-        e2 = np.array(feat2['embedding'])
-        
-        # Cosine similarity is just the dot product because vectors are pre-normalized
-        score = np.dot(e1, e2)
-        
-        return {
-            "score": float(score),
-            "bounds": None # Semantic matching doesn't use exact bounds
-        }
-
-    @staticmethod
-    def get_preview_data(file_path):
+    # -----------------------------------------------------------------
+    # Public: load image from path (supports jpg, png, cdr)
+    # -----------------------------------------------------------------
+    def get_features(self, file_path: str) -> dict | None:
         try:
             if file_path.lower().endswith('.cdr'):
-                with zipfile.ZipFile(file_path, 'r') as archive:
-                    return archive.read('previews/preview.png')
-            with open(file_path, 'rb') as f: return f.read()
-        except: return None
+                with zipfile.ZipFile(file_path, 'r') as arc:
+                    with arc.open('previews/preview.png') as f:
+                        data = np.frombuffer(f.read(), np.uint8)
+                        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+            else:
+                img = cv2.imread(file_path)
+
+            return self._extract(img)
+        except Exception as e:
+            print(f"Extraction Error [{file_path}]: {e}")
+            return None
+
+    # -----------------------------------------------------------------
+    # Public: extract from raw numpy pixels (from cv2 crop / drag-drop)
+    # -----------------------------------------------------------------
+    def get_features_from_pixels(self, img) -> dict | None:
+        """Accept a numpy BGR array or PIL Image."""
+        try:
+            if isinstance(img, Image.Image):
+                img = cv2.cvtColor(np.array(img.convert('RGB')), cv2.COLOR_RGB2BGR)
+            return self._extract(img)
+        except Exception as e:
+            print(f"Pixel Extraction Error: {e}")
+            return None
+
+    def _extract(self, img: np.ndarray) -> dict | None:
+        if img is None:
+            return None
+        # Resize to standard size so zone counts are consistent
+        img = cv2.resize(img, (320, 320))
+        zones = self._compute_zone_histograms(img)
+        return {"zones": zones}
+
+    # -----------------------------------------------------------------
+    # Public: compare two feature dicts, return score 0-1
+    # -----------------------------------------------------------------
+    def compare_designs(self, feat1: dict, feat2: dict) -> dict:
+        if not feat1 or not feat2 or "zones" not in feat1 or "zones" not in feat2:
+            return {"score": 0.0, "bounds": None}
+
+        z1 = feat1["zones"]
+        z2 = feat2["zones"]
+
+        total = 0.0
+        count = min(len(z1), len(z2))
+        for h1, h2 in zip(z1, z2):
+            a = np.array(h1, dtype=np.float32)
+            b = np.array(h2, dtype=np.float32)
+            # Bhattacharyya coefficient — 1 = identical, 0 = no overlap
+            norm_a = np.sqrt(a / (a.sum() + 1e-8))
+            norm_b = np.sqrt(b / (b.sum() + 1e-8))
+            bc = float(np.dot(norm_a, norm_b))
+            total += bc
+
+        score = total / count if count > 0 else 0.0
+        return {"score": score, "bounds": None}
+
+    # -----------------------------------------------------------------
+    # Public: load raw bytes for preview (used by UI cards)
+    # -----------------------------------------------------------------
+    @staticmethod
+    def get_preview_data(file_path: str) -> bytes | None:
+        try:
+            if file_path.lower().endswith('.cdr'):
+                with zipfile.ZipFile(file_path, 'r') as arc:
+                    return arc.read('previews/preview.png')
+            with open(file_path, 'rb') as f:
+                return f.read()
+        except:
+            return None
