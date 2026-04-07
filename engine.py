@@ -17,13 +17,22 @@ class DesignEngine:
 
     def get_features(self, file_path):
         try:
-            if file_path.lower().endswith('.cdr'):
+            def load_and_prep_img(f):
+                img = Image.open(f)
+                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                    alpha = img.convert('RGBA').split()[-1]
+                    bg = Image.new("RGB", img.size, (255, 255, 255))
+                    bg.paste(img, mask=alpha)
+                    return bg
+                return img.convert('RGB')
+
+            if isinstance(file_path, str) and file_path.lower().endswith('.cdr'):
                 with zipfile.ZipFile(file_path, 'r') as archive:
                     with archive.open('previews/preview.png') as thumb_file:
                         from io import BytesIO
-                        img = Image.open(BytesIO(thumb_file.read())).convert('RGB')
+                        img = load_and_prep_img(BytesIO(thumb_file.read()))
             else:
-                img = Image.open(file_path).convert('RGB')
+                img = load_and_prep_img(file_path)
             
             return self.get_features_from_pixels(img)
         except Exception as e:
